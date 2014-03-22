@@ -58,6 +58,8 @@
 #include <drivers/drv_hrt.h>
 #include <math.h>
 
+#include <drivers/drv_range_finder.h>
+
 #include <uORB/uORB.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/sensor_combined.h>
@@ -791,6 +793,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct vehicle_global_velocity_setpoint_s global_vel_sp;
 		struct battery_status_s battery;
 		struct telemetry_status_s telemetry;
+		struct range_finder_report range_finder;
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -851,6 +854,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int global_vel_sp_sub;
 		int battery_sub;
 		int telemetry_sub;
+		int range_finder_sub;
 	} subs;
 
 	subs.cmd_sub = orb_subscribe(ORB_ID(vehicle_command));
@@ -874,6 +878,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.global_vel_sp_sub = orb_subscribe(ORB_ID(vehicle_global_velocity_setpoint));
 	subs.battery_sub = orb_subscribe(ORB_ID(battery_status));
 	subs.telemetry_sub = orb_subscribe(ORB_ID(telemetry_status));
+	subs.range_finder_sub = orb_subscribe(ORB_ID(sensor_range_finder));
 
 	thread_running = true;
 
@@ -882,11 +887,11 @@ int sdlog2_thread_main(int argc, char *argv[])
 	pthread_cond_init(&logbuffer_cond, NULL);
 
 	/* track changes in sensor_combined topic */
-	uint16_t gyro_counter = 0;
-	uint16_t accelerometer_counter = 0;
-	uint16_t magnetometer_counter = 0;
-	uint16_t baro_counter = 0;
-	uint16_t differential_pressure_counter = 0;
+	hrt_abstime gyro_timestamp = 0;
+	hrt_abstime accelerometer_timestamp = 0;
+	hrt_abstime magnetometer_timestamp = 0;
+	hrt_abstime barometer_timestamp = 0;
+	hrt_abstime differential_pressure_timestamp = 0;
 
 	/* track changes in distance status */
 	bool dist_bottom_present = false;
@@ -971,28 +976,28 @@ int sdlog2_thread_main(int argc, char *argv[])
 			bool write_IMU = false;
 			bool write_SENS = false;
 
-			if (buf.sensor.gyro_counter != gyro_counter) {
-				gyro_counter = buf.sensor.gyro_counter;
+			if (buf.sensor.timestamp != gyro_timestamp) {
+				gyro_timestamp = buf.sensor.timestamp;
 				write_IMU = true;
 			}
 
-			if (buf.sensor.accelerometer_counter != accelerometer_counter) {
-				accelerometer_counter = buf.sensor.accelerometer_counter;
+			if (buf.sensor.accelerometer_timestamp != accelerometer_timestamp) {
+				accelerometer_timestamp = buf.sensor.accelerometer_timestamp;
 				write_IMU = true;
 			}
 
-			if (buf.sensor.magnetometer_counter != magnetometer_counter) {
-				magnetometer_counter = buf.sensor.magnetometer_counter;
+			if (buf.sensor.magnetometer_timestamp != magnetometer_timestamp) {
+				magnetometer_timestamp = buf.sensor.magnetometer_timestamp;
 				write_IMU = true;
 			}
 
-			if (buf.sensor.baro_counter != baro_counter) {
-				baro_counter = buf.sensor.baro_counter;
+			if (buf.sensor.baro_timestamp != barometer_timestamp) {
+				barometer_timestamp = buf.sensor.baro_timestamp;
 				write_SENS = true;
 			}
 
-			if (buf.sensor.differential_pressure_counter != differential_pressure_counter) {
-				differential_pressure_counter = buf.sensor.differential_pressure_counter;
+			if (buf.sensor.differential_pressure_timestamp != differential_pressure_timestamp) {
+				differential_pressure_timestamp = buf.sensor.differential_pressure_timestamp;
 				write_SENS = true;
 			}
 
@@ -1018,6 +1023,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 				log_msg.body.log_SENS.diff_pres = buf.sensor.differential_pressure_pa;
 				LOGBUFFER_WRITE_AND_COUNT(SENS);
 			}
+
 		}
 
 		/* --- ATTITUDE --- */
@@ -1225,6 +1231,15 @@ int sdlog2_thread_main(int argc, char *argv[])
 			log_msg.body.log_TELE.fixed = buf.telemetry.fixed;
 			log_msg.body.log_TELE.txbuf = buf.telemetry.txbuf;
 			LOGBUFFER_WRITE_AND_COUNT(TELE);
+		}
+
+		/* --- BOTTOM DISTANCE --- */
+		if (copy_if_updated(ORB_ID(sensor_range_finder), subs.range_finder_sub, &buf.range_finder)) {
+			log_msg.msg_type = LOG_DIST_MSG;
+			log_msg.body.log_DIST.bottom = buf.range_finder.distance;
+			log_msg.body.log_DIST.bottom_rate = 0.0f;
+			log_msg.body.log_DIST.flags = (buf.range_finder.valid ? 1 : 0);
+			LOGBUFFER_WRITE_AND_COUNT(DIST);
 		}
 
 		/* signal the other thread new data, but not yet unlock */
