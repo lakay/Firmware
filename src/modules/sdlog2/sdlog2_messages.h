@@ -92,6 +92,7 @@ struct log_SENS_s {
 	float baro_alt;
 	float baro_temp;
 	float diff_pres;
+	float diff_pres_filtered;
 };
 
 /* --- LPOS - LOCAL POSITION --- */
@@ -298,6 +299,36 @@ struct log_PARM_s {
 	float value;
 };
 
+/* --- ESTM - ESTIMATOR STATUS --- */
+#define LOG_ESTM_MSG 132
+struct log_ESTM_s {
+	float s[10];
+	uint8_t n_states;
+	uint8_t states_nan;
+	uint8_t covariance_nan;
+	uint8_t kalman_gain_nan;
+};
+// struct log_ESTM_s {
+// 	float s[32];
+// 	uint8_t n_states;
+// 	uint8_t states_nan;
+// 	uint8_t covariance_nan;
+// 	uint8_t kalman_gain_nan;
+// };
+
+/* --- PWR - ONBOARD POWER SYSTEM --- */
+#define LOG_PWR_MSG 133
+struct log_PWR_s {
+	float peripherals_5v;
+	float servo_rail_5v;
+	float servo_rssi_5v;
+	uint8_t usb_ok;
+	uint8_t brick_ok;
+	uint8_t servo_ok;
+	uint8_t low_power_rail_overcurrent;
+	uint8_t high_power_rail_overcurrent;
+};
+
 #pragma pack(pop)
 
 /* construct list of all message formats */
@@ -306,7 +337,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(ATT, "fffffffff", "Roll,Pitch,Yaw,RollRate,PitchRate,YawRate,GX,GY,GZ"),
 	LOG_FORMAT(ATSP, "ffff", "RollSP,PitchSP,YawSP,ThrustSP"),
 	LOG_FORMAT(IMU, "fffffffff", "AccX,AccY,AccZ,GyroX,GyroY,GyroZ,MagX,MagY,MagZ"),
-	LOG_FORMAT(SENS, "ffff", "BaroPres,BaroAlt,BaroTemp,DiffPres"),
+	LOG_FORMAT(SENS, "fffff", "BaroPres,BaroAlt,BaroTemp,DiffPres,DiffPresFilt"),
 	LOG_FORMAT(LPOS, "ffffffLLfBBB", "X,Y,Z,VX,VY,VZ,RefLat,RefLon,RefAlt,XYFlags,ZFlags,Landed"),
 	LOG_FORMAT(LPSP, "ffff", "X,Y,Z,Yaw"),
 	LOG_FORMAT(GPS, "QBffLLfffff", "GPSTime,FixType,EPH,EPV,Lat,Lon,Alt,VelN,VelE,VelD,Cog"),
@@ -330,6 +361,9 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(TIME, "Q", "StartTime"),
 	LOG_FORMAT(VER, "NZ", "Arch,FwGit"),
 	LOG_FORMAT(PARM, "Nf", "Name,Value"),
+	LOG_FORMAT(ESTM, "ffffffffffBBBB", "s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,n_states,states_nan,cov_nan,kgain_nan"),
+	LOG_FORMAT(PWR, "fffBBBBB", "5V_PERIPH, 5V_SRV,USB_OK,BRICK_OK,SRV_OK,PERIPH_OC,HIPWR_OC"),
+	//LOG_FORMAT(ESTM, "ffffffffffffffffffffffffffffffffBBBB", "s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15,s16,s17,s18,s19,s20,s21,s22,s23,s24,s25,s26,s27,s28,s29,s30,s31,n_states,states_nan,cov_nan,kgain_nan"),
 };
 
 static const int log_formats_num = sizeof(log_formats) / sizeof(struct log_format_s);
